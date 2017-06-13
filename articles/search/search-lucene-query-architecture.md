@@ -88,29 +88,29 @@ The query parser separates operators (such as `*` and `+` in the example) from s
 
 For a full list of supported query types see [Lucene query sytnax](https://docs.microsoft.com/rest/api/searchservice/lucene-query-syntax-in-azure-search)
 
-Operators associated with a subquery determine whether the query "must be" or "should be" satisfied in order for a document to be considered a match. For example, `+"Ocean view"` is "must" due to the `+` operator. 
-
-The query parser restructures the subqueries into a *query tree* (an internal structure representing the query) it passes on to the search engine. In the first stage of query parsing, the query tree looks like this.  
-
- ![Boolean query searchmode any][2]
-
 ### Supported parsers: Simple and Full Lucene 
 
  Azure Search exposes two different query languages, `simple` (default) and `full`. By setting the `queryType` parameter with your search request, you tell the query parser which query language you choose so that it knows how to interpret the operators and syntax. The [Simple query langauge](https://docs.microsoft.com/rest/api/searchservice/simple-query-syntax-in-azure-search) is intuitive and robust, often suitable to interpret user input as-is without client-side processing. It supports query operators familiar from web search engines. The [Full Lucene query language](https://docs.microsoft.com/rest/api/searchservice/lucene-query-syntax-in-azure-search), which you get by setting `queryType=full`, extends the default Simple query language by adding support for more operators and query types like wildcard, fuzzy, regex, and field-scoped queries. For example, a regular expression sent in Simple query syntax would be interpreted as a query string and not an expression. The example request in this article uses the Full Lucene query language.
 
 ### Impact of searchMode on the parser 
 
+Explicit operators, such as `+` in `+"Ocean view"`, are unambiguous in boolean query construction (the term *must* match). Less obvious is how to interpret the remaining terms: spacious and air-condition. Should the search engine find matches on ocean view *and* spacious *and* air-condition? Or should it find ocean view plus *either one* of the remaining terms? 
+
 Another search request parameter that affects parsing is the `searchMode` parameter. It controls the default operator for Boolean queries: any (default) or all.  
 
-When `searchMode=any`, which is the default, the space delimiter between spacious and air-condition is OR (`||`), making the sample query text equivalent to: 
+When `searchMode=any`, which is the default, the space delimiter between spacious and air-condition becomes OR (`||`), making the sample query text equivalent to: 
 
 ~~~~
 Spacious,||air-condition*+"Ocean view" 
 ~~~~
 
-Explicit operators, such as `+` in `+"Ocean view"`, are unambiguous in boolean query construction (the term *must* match). Less obvious is how to interpret the remaining terms: spacious and air-condition. Should the search engine find matches on ocean view *and* spacious *and* air-condition? Or should it find ocean view plus *either one* of the remaining terms? 
 
-By default (`searchMode=any`), the search engine assumes the broader interpretation. Either field *should* be matched, reflecting "or" semantics. The initial query tree illustrated previously, with the two "should" operations, shows the default.  
+Operators associated with a subquery determine whether the query "must be" or "should be" satisfied in order for a document to be considered a match. For example, `+"Ocean view"` is "must" due to the `+` operator.
+Either of the other fields *should* be matched, reflecting "or" semantics. 
+
+The query tree for this query would be as follows, with 2 "should" operations:
+
+ ![Boolean query searchmode any][2]
 
 Suppose that we now set `searchMode=all`. In this case, the space is interpreted as an "and" operation. Each of the remaining terms must both be present in the document to qualify as a match. The resulting sample query would be interpreted as follows: 
 
@@ -118,7 +118,7 @@ Suppose that we now set `searchMode=all`. In this case, the space is interpreted
 +Spacious,+air-condition*+"Ocean view"  
 ~~~~
 
-A modified query tree for this query would be as follows, where a matching document is the intersection of all three subqueries: 
+A modified query tree for this query would be as follows, where a matching document is the intersection of all three subqueries, , with 3 "must" operations:: 
 
  ![Boolean query searchmode all][3]
 
@@ -128,7 +128,7 @@ A modified query tree for this query would be as follows, where a matching docum
 <a name="stage2"></a>
 ## Stage 2: Lexical analysis 
 
-Lexical analyzers process *term queries* and *phrase queries* after the query tree is structured. An analyzer accepts the text inputs given to it by the parser, processes the text, and then sends back tokenized terms to be incorporated into the query tree. 
+Lexical analyzers process *term queries* and *phrase queries* after the query tree is structured. An analyzer receives the text inputs given to it by the parser, processes the text, and then sends back tokenized terms to be incorporated into the query tree. 
 
 The most common form of lexical analysis is *linguistic analysis* which transforms query terms based on rules specific to a given language: 
 
@@ -150,7 +150,7 @@ When the default analyzer processes the term, it will lowercase "ocean view" and
 
 ### Testing analyzer behaviors 
 
-The behavior of an analyzer can be tested using the [Analyze API](https://docs.microsoft.com/rest/api/searchservice/test-analyzer). Provide the text you want to analyze to see what terms given analyzer will generate. For example, to see how the standard analyzer would process the text "air-condition", you can issue the following request:
+The behavior of an analyzer can be tested using the [Analyze API](https://docs.microsoft.com/rest/api/searchservice/test-analyzer). Provide the text you want to analyze to see what terms the given analyzer will generate. For example, to see how the standard analyzer would process the text "air-condition", you can issue the following request:
 
 ~~~~
 { 
